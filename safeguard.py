@@ -1,8 +1,40 @@
+from Crypto.Cipher import AES
+from Crypto.Protocol.KDF import scrypt
+from Crypto.Random import get_random_bytes
+import base64
 import sys
 
-def check_master_password(master_password_args):
-   return True
+# Function for checking if entered password is the defined MasterPassword
+def check_master_password(master_password_args, data):
+   key = generate_key(master_password_args)
+   decrypted_data = decrypt_data(key, data)
+   if decrypted_data[0] == "hardkodirano sifrom":
+      return True
+   else:
+      return False
 
+# Function for generating/derivating key from master password
+def generate_key(master_password_args):
+   salt = get_random_bytes(16)
+   key = scrypt(master_password_args, salt, key_len=32, N=2**14, r=8, p=1)
+   return key
+
+# Function for encrypting data using the provided key
+def encrypt_data(key, data):
+    cipher = AES.new(key, AES.MODE_GCM)
+    ciphertext, tag = cipher.encrypt_and_digest(data.encode())
+    return base64.b64encode(cipher.nonce + tag + ciphertext)
+ 
+# Function for decrypting data using the provided key
+def decrypt_data(key, encrypted_data):
+    raw_data = base64.b64decode(encrypted_data)
+    nonce = raw_data[:16]
+    tag = raw_data[16:32]
+    ciphertext = raw_data[32:]
+    cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
+    return cipher.decrypt_and_verify(ciphertext, tag).decode()
+
+# Function for initialising the database
 def init(master_password_args, args):
    if check_master_password(master_password_args):
       if len(args) != 2:
@@ -10,8 +42,12 @@ def init(master_password_args, args):
          return
       print("Password manager initialized.")
       with open("data.txt", "w") as file:
-         file.truncate(0)
-   
+         data = "hardkodirano sifrom"
+         key = generate_key(master_password_args)
+         encrypted_data = encrypt_data(key, data)
+         file.write(encrypted_data)
+
+# Function for adding new pair of address and password to database
 def new_data(master_password_args, address_args, password_args, args):
    if check_master_password(master_password_args):
       if len(args) != 4:
@@ -34,6 +70,7 @@ def new_data(master_password_args, address_args, password_args, args):
             data.write(f"{address_args} {password_args}\n")
       print(f"Stored password for {address_args}.")
 
+# Function for fetching password with address from database
 def get_data(master_password_args, address_args, args):
    if check_master_password(master_password_args):
       if len(args) != 3:
@@ -52,6 +89,7 @@ def get_data(master_password_args, address_args, args):
       else: 
          print(f"Password for www.fer.hr is: {password_from_data}")
 
+# Main
 def main():
    args = sys.argv[1:]
 
@@ -63,6 +101,14 @@ def main():
       address_args = args[2]
       if len(args) == 4: 
          password_args = args[3]
+         
+   with open("data.txt", "r") as data:
+      content = data.readlines()
+   
+   if check_master_password(master_password_args, content) == False:
+      print("Master password incorrect or integrity check failed.")
+      sys.exit()
+         
    
    if operation == "init":
       init(master_password_args, args)
