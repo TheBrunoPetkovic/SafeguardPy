@@ -41,13 +41,16 @@ def get_data(master_password_args, address_args, args):
          return
       password_from_data = None
       with open("data.txt", "r") as data:
-         lines = data.read()
+         lines = data.readlines()
          for line in lines:
             couple = line.split(" ")
             if couple[0] == address_args:
                password_from_data = couple[1]
-      if
-      print(f"Password for {address_args} is: {password_from_data}")
+               password_from_data = password_from_data[:-1]
+      if password_from_data == None:
+         print(f"There is no password associated with address: {address_args}")
+      else: 
+         print(f"Password for www.fer.hr is: {password_from_data}")
 
 def main():
    args = sys.argv[1:]
@@ -56,7 +59,6 @@ def main():
    master_password_args = args[1]
    address_args = None
    password_args = None
-
    if len(args) >= 3:
       address_args = args[2]
       if len(args) == 4: 
