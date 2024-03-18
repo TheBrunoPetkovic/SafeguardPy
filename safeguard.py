@@ -8,10 +8,7 @@ import sys
 def check_master_password(master_password_args, data):
    key = generate_key(master_password_args)
    decrypted_data = decrypt_data(key, data)
-   if decrypted_data[0] == "hardkodirano sifrom":
-      return True
-   else:
-      return False
+   return decrypted_data == b"hardkodirano sifrom"
 
 # Function for generating/derivating key from master password
 def generate_key(master_password_args):
@@ -22,7 +19,7 @@ def generate_key(master_password_args):
 # Function for encrypting data using the provided key
 def encrypt_data(key, data):
     cipher = AES.new(key, AES.MODE_GCM)
-    ciphertext, tag = cipher.encrypt_and_digest(data.encode())
+    ciphertext, tag = cipher.encrypt_and_digest(data)
     return base64.b64encode(cipher.nonce + tag + ciphertext)
  
 # Function for decrypting data using the provided key
@@ -32,28 +29,26 @@ def decrypt_data(key, encrypted_data):
     tag = raw_data[16:32]
     ciphertext = raw_data[32:]
     cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
-    return cipher.decrypt_and_verify(ciphertext, tag).decode()
+    return cipher.decrypt_and_verify(ciphertext, tag)
 
 # Function for initialising the database
 def init(master_password_args, args):
-   if check_master_password(master_password_args):
-      if len(args) != 2:
-         print("Incorrect number of arguments for operation - init.")
-         return
-      print("Password manager initialized.")
-      with open("data.txt", "w") as file:
-         data = "hardkodirano sifrom"
-         key = generate_key(master_password_args)
-         encrypted_data = encrypt_data(key, data)
-         file.write(encrypted_data)
+   if len(args) != 2:
+      print("Incorrect number of arguments for operation - init.")
+      return
+   print("Password manager initialized.")
+   with open("data.txt", "wb") as file:
+      data = encrypt_data(generate_key(master_password_args), b"hardkodirano sifrom")
+      file.write(data)
+      sys.exit()
 
 # Function for adding new pair of address and password to database
 def new_data(master_password_args, address_args, password_args, args):
-   if check_master_password(master_password_args):
+   if check_master_password(master_password_args, open("data.txt", "rb").read()):
       if len(args) != 4:
          print("Incorrect number of arguments for operation - put.")
          return
-      with open("data.txt", "r+") as data:
+      with open("data.txt", "rb+") as data:
          lines = data.readlines()
          data.seek(0)
          address_exists = False
@@ -62,25 +57,25 @@ def new_data(master_password_args, address_args, password_args, args):
                continue
             couple = line.split()
             if couple[0] == address_args:
-               data.write(f"{address_args} {password_args}\n")
+               data.write(f"{address_args} {password_args}\n".encode())
                address_exists = True
             else:
                data.write(line)
          if not address_exists:
-            data.write(f"{address_args} {password_args}\n")
+            data.write(f"{address_args} {password_args}\n".encode())
       print(f"Stored password for {address_args}.")
 
 # Function for fetching password with address from database
 def get_data(master_password_args, address_args, args):
-   if check_master_password(master_password_args):
+   if check_master_password(master_password_args, open("data.txt", "rb").read()):
       if len(args) != 3:
          print("Incorrect number of arguments for operation - get.")
          return
       password_from_data = None
-      with open("data.txt", "r") as data:
+      with open("data.txt", "rb") as data:
          lines = data.readlines()
          for line in lines:
-            couple = line.split(" ")
+            couple = line.split()
             if couple[0] == address_args:
                password_from_data = couple[1]
                password_from_data = password_from_data[:-1]
@@ -102,17 +97,9 @@ def main():
       if len(args) == 4: 
          password_args = args[3]
          
-   with open("data.txt", "r") as data:
-      content = data.readlines()
-   
-   if check_master_password(master_password_args, content) == False:
-      print("Master password incorrect or integrity check failed.")
-      sys.exit()
-         
-   
    if operation == "init":
       init(master_password_args, args)
-
+         
    if operation == "put":
       if address_args is not None and password_args is not None:
          new_data(master_password_args, address_args, password_args, args)
@@ -123,4 +110,3 @@ def main():
 
 if __name__ == "__main__":
    main()
-   
