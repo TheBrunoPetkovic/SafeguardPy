@@ -1,3 +1,4 @@
+import ast
 from Crypto.Cipher import Salsa20
 from Crypto.Protocol.KDF import scrypt
 from Crypto.Random import get_random_bytes
@@ -47,8 +48,9 @@ def main():
       key = derive_key(master_password, salt)
        
       random_code = "random_code_for_checking_master_password"
-      hash = hash_data("-" + random_code)
-      authentication_part = f"{hash}-{random_code}".encode()
+      hash = hash_data(random_code)
+      authentication_part = str(hash) + "-" + random_code
+      authentication_part = authentication_part.encode()
       encrypted_data = encrypt_data(authentication_part, key)
       
       with open("data.txt", "w") as database:
@@ -67,6 +69,7 @@ def main():
       # ako je onda super, ako nije onda ispisi error - NAPRAVIA
       # provjerit masterPass kod - NAPRAVIA
       # ako je minjan ispisat error ako nije super - NAPRAVIA
+      # DEBUGat sve gori - NAPRAVIA
       # loopat kroz podatke i nac adresu koja je zadana
       # ako nije u baziu dodat novu adresu, aklo je onda prominit sifru za tu adresu
       # formatirat nove podatke
@@ -76,26 +79,80 @@ def main():
       with open("data.txt", "r") as database:
          old_data = database.read()
          
-         # Check integrity and master password from args
-         salt = old_data[0].split(": ")
-         rest_of_data =  old_data[1]
-         key = derive_key(master_password, salt)
-         decrypted_rest_of_data = decrypt_data(rest_of_data, key)
-         only_hash_and_code = decrypted_rest_of_data.split(",")[0]
-         coded_part = only_hash_and_code.split("-")[0]
-         hashed_part = only_hash_and_code.split("-")[1]
+      # Check integrity and master password from args
+      #try:
+         salt = old_data.split("\n")[0].split(": ")[1] # Dobar
+         salt = ast.literal_eval(salt) # salt tribaju bit bajtovi zato je ode ova linija
+         rest_of_data = old_data.split("\n")[1] # Dobar
+         rest_of_data = ast.literal_eval(rest_of_data) # pritvori ih u bytes
          
+         key = derive_key(master_password, salt) # oke
+         decrypted_rest_of_data = decrypt_data(rest_of_data, key).decode() # kaze da je string
+
+         only_hash_and_code = decrypted_rest_of_data.split(",", 1)[0]
+         #print("decrypted_rest_of_data: " + decrypted_rest_of_data)
+         all_data = ",".join(decrypted_rest_of_data.split("-", 1)[1:])
+         #print(all_data)
+         #print(only_hash_and_code)
+         coded_part = only_hash_and_code.split("-")[1] # ovo je string 
+         #print(coded_part)
+         hashed_part = only_hash_and_code.split("-")[0]
+         hashed_part = ast.literal_eval(hashed_part)
+      
          if coded_part != "random_code_for_checking_master_password":
             print("Master password incorrect or integrity check failed.")
             sys.exit()
-         
-         content = decrypted_rest_of_data.replace(hashed_part, "")
-         hash_for_checking_integrity = hash_data(content)
-         if hash_for_checking_integrity != hashed_part:
+         else:
+            print("sifra je dobra")
+      
+         # Checking integrity of stored data
+         hash_of_coded_part = hash_data(all_data)
+         print(all_data)
+         if hash_of_coded_part != hashed_part:
+            
+            
             print("Master password incorrect or integrity check failed.")
             sys.exit()
+         else:
+            print("hash je isti ka i prije")
+      
+      #except Exception as e:
+         #print(e)
+         #print("Master password incorrect or integrity check failed.")
+         #sys.exit()
+      print(decrypted_rest_of_data)
+      old_data = decrypted_rest_of_data.split(",", 1)[1:]
+      print("old data: " + "".join(old_data))
+      new_pair = f",{address}-{password}"
+      old_data.append(new_pair)
+      print("old data with new pair: " + "".join(old_data))
+      old_data_as_string = "".join(old_data)
+      
+      if decrypted_rest_of_data != str(hash_of_coded_part) + "-random_code_for_checking_master_password":
+         old_data_as_string = "," + old_data_as_string
+      print("old_data_as_string: " + old_data_as_string)
+      
+      full_data = "random_code_for_checking_master_password" + old_data_as_string
+      print("full data: " + "".join(full_data))
+      hashed_full_data = hash_data(full_data)
+      ready_to_store_data = str(hashed_full_data) + "-" + full_data
+      ready_to_store_data = ready_to_store_data.encode()
+      
+      salt = get_random_bytes(32)
+      key = derive_key(master_password, salt)
+      encrypted_data = encrypt_data(ready_to_store_data, key)
+      
+      with open("data.txt", "w") as database:
+         database.write(f"Salt: {salt}\n")
+         database.write(f"{encrypted_data}")
          
+      print(f"Stored password for {address}. ")
+      sys.exit()
+      
+
          
+      
+
          
          
       
@@ -108,11 +165,9 @@ def main():
    # Derivate key      
    salt = get_random_bytes(32)
    key = derive_key(master_password, salt)
-   
    poruka = f"{address}-{password}".encode()
    print(poruka)
    encrypted_data = encrypt_data(poruka, key)
-   print(encrypted_data)
    decrypted_data = decrypt_data(encrypted_data, key)
    print(decrypted_data)
   
