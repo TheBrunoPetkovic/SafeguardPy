@@ -136,8 +136,11 @@ def main():
       data[address] = password
       
       store_data(data, master_password)
-      print(f"Stored password for {address}. ")
-      sys.exit()
+      if address not in data:
+         print("Master password incorrect or integrity check failed. ")
+      else:
+         print(f"Stored password for {address}. ")
+         sys.exit()
       
    if operation == "get":
       data = read_database(master_password) # Type - Dict
